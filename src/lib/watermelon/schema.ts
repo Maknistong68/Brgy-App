@@ -1,0 +1,108 @@
+// @ts-nocheck
+import { appSchema, tableSchema } from '@nozbe/watermelondb';
+
+export const schema = appSchema({
+  version: 1,
+  tables: [
+    tableSchema({
+      name: 'profiles',
+      columns: [
+        { name: 'server_id', type: 'string' },
+        { name: 'user_id', type: 'string' },
+        { name: 'barangay_id', type: 'string', isOptional: true },
+        { name: 'first_name', type: 'string' },
+        { name: 'last_name', type: 'string' },
+        { name: 'email', type: 'string' },
+        { name: 'phone', type: 'string', isOptional: true },
+        { name: 'role', type: 'string' },
+        { name: 'avatar_url', type: 'string', isOptional: true },
+        { name: 'is_verified', type: 'boolean' },
+        { name: 'updated_at', type: 'number' },
+      ],
+    }),
+    tableSchema({
+      name: 'complaints',
+      columns: [
+        { name: 'server_id', type: 'string' },
+        { name: 'barangay_id', type: 'string' },
+        { name: 'reference_number', type: 'string' },
+        { name: 'complainant_id', type: 'string' },
+        { name: 'respondent_name', type: 'string' },
+        { name: 'respondent_address', type: 'string', isOptional: true },
+        { name: 'category', type: 'string' },
+        { name: 'description', type: 'string' },
+        { name: 'priority', type: 'string' },
+        { name: 'status', type: 'string' },
+        { name: 'assigned_to', type: 'string', isOptional: true },
+        { name: 'created_at', type: 'number' },
+        { name: 'updated_at', type: 'number' },
+      ],
+    }),
+    tableSchema({
+      name: 'complaint_comments',
+      columns: [
+        { name: 'server_id', type: 'string' },
+        { name: 'complaint_id', type: 'string' },
+        { name: 'author_id', type: 'string' },
+        { name: 'content', type: 'string' },
+        { name: 'is_internal', type: 'boolean' },
+        { name: 'created_at', type: 'number' },
+        { name: 'updated_at', type: 'number' },
+      ],
+    }),
+    tableSchema({
+      name: 'complaint_status_history',
+      columns: [
+        { name: 'server_id', type: 'string' },
+        { name: 'complaint_id', type: 'string' },
+        { name: 'from_status', type: 'string', isOptional: true },
+        { name: 'to_status', type: 'string' },
+        { name: 'changed_by', type: 'string' },
+        { name: 'notes', type: 'string', isOptional: true },
+        { name: 'created_at', type: 'number' },
+      ],
+    }),
+    tableSchema({
+      name: 'document_requests',
+      columns: [
+        { name: 'server_id', type: 'string' },
+        { name: 'barangay_id', type: 'string' },
+        { name: 'reference_number', type: 'string' },
+        { name: 'requestor_id', type: 'string' },
+        { name: 'document_type', type: 'string' },
+        { name: 'purpose', type: 'string' },
+        { name: 'status', type: 'string' },
+        { name: 'payment_status', type: 'string' },
+        { name: 'amount', type: 'number', isOptional: true },
+        { name: 'created_at', type: 'number' },
+        { name: 'updated_at', type: 'number' },
+      ],
+    }),
+    tableSchema({
+      name: 'notifications',
+      columns: [
+        { name: 'server_id', type: 'string' },
+        { name: 'user_id', type: 'string' },
+        { name: 'type', type: 'string' },
+        { name: 'title', type: 'string' },
+        { name: 'body', type: 'string' },
+        { name: 'is_read', type: 'boolean' },
+        { name: 'created_at', type: 'number' },
+      ],
+    }),
+    tableSchema({
+      name: 'announcements',
+      columns: [
+        { name: 'server_id', type: 'string' },
+        { name: 'barangay_id', type: 'string' },
+        { name: 'title', type: 'string' },
+        { name: 'content', type: 'string' },
+        { name: 'is_published', type: 'boolean' },
+        { name: 'published_at', type: 'number', isOptional: true },
+        { name: 'expires_at', type: 'number', isOptional: true },
+        { name: 'created_at', type: 'number' },
+        { name: 'updated_at', type: 'number' },
+      ],
+    }),
+  ],
+});
