@@ -186,8 +186,8 @@ export default function NewComplaintScreen() {
             complaint_id: data.id,
             uploaded_by: profile.id,
             file_name: attachment.name,
-            file_url: urlData.publicUrl,
-            file_type: attachment.type,
+            file_path: filePath,
+            mime_type: attachment.type,
             file_size: attachment.size,
           });
         }

@@ -1,10 +1,17 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+const ALLOWED_ORIGIN = Deno.env.get('ALLOWED_ORIGIN') || '';
+
+function corsHeaders(req: Request) {
+  const origin = req.headers.get('Origin') || '';
+  return {
+    'Access-Control-Allow-Origin': origin === ALLOWED_ORIGIN ? origin : '',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  };
+}
+
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}(T[\d:.]+Z?)?$/;
 
 interface DashboardParams {
   barangayId: string;
@@ -16,24 +23,40 @@ interface DashboardParams {
 }
 
 serve(async (req) => {
+  const headers = corsHeaders(req);
+
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response('ok', { headers });
   }
 
   try {
+    // Use anon key + user JWT instead of service role key
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
-      { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      { global: { headers: { Authorization: req.headers.get('Authorization')! } } },
     );
 
-    const { barangayId, dateRange, role } = (await req.json()) as DashboardParams;
+    const { barangayId, dateRange } = (await req.json()) as DashboardParams;
 
     if (!barangayId) {
       return new Response(JSON.stringify({ error: 'barangayId is required' }), {
         status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...headers, 'Content-Type': 'application/json' },
       });
+    }
+
+    // Validate date range format
+    if (dateRange) {
+      if (
+        (dateRange.start && !ISO_DATE_RE.test(dateRange.start)) ||
+        (dateRange.end && !ISO_DATE_RE.test(dateRange.end))
+      ) {
+        return new Response(JSON.stringify({ error: 'Invalid date range format. Use ISO 8601.' }), {
+          status: 400,
+          headers: { ...headers, 'Content-Type': 'application/json' },
+        });
+      }
     }
 
     const startDate = dateRange?.start || new Date(new Date().setMonth(new Date().getMonth() - 6)).toISOString();
@@ -88,7 +111,7 @@ serve(async (req) => {
 
     const monthlyTrends: Record<string, { complaints: number; documents: number }> = {};
     (monthlyComplaints || []).forEach((c: any) => {
-      const month = c.created_at.substring(0, 7); // YYYY-MM
+      const month = c.created_at.substring(0, 7);
       if (!monthlyTrends[month]) monthlyTrends[month] = { complaints: 0, documents: 0 };
       monthlyTrends[month].complaints++;
     });
@@ -107,12 +130,12 @@ serve(async (req) => {
     }
 
     (monthlyDocuments || []).forEach((d: any) => {
-      const month = d.created_at.substring(0, 7); // YYYY-MM
+      const month = d.created_at.substring(0, 7);
       if (!monthlyTrends[month]) monthlyTrends[month] = { complaints: 0, documents: 0 };
       monthlyTrends[month].documents++;
     });
 
-    // Resolution metrics - average resolution time for resolved complaints
+    // Resolution metrics
     const { data: resolvedComplaints, error: resolvedError } = await supabase
       .from('complaints')
       .select('created_at, resolved_at')
@@ -159,7 +182,6 @@ serve(async (req) => {
       .slice(0, 5)
       .map(([category, count]) => ({ category, count }));
 
-    // Total counts
     const totalComplaints = complaintsByStatus?.length || 0;
     const totalDocuments = documentsByStatus?.length || 0;
     const totalResolved = resolved.length;
@@ -179,22 +201,19 @@ serve(async (req) => {
       resolutionMetrics: {
         averageResolutionTimeHours: avgResolutionTimeHours,
         totalResolved,
-        totalPending: (complaintCounts['pending'] || 0) + (complaintCounts['in_progress'] || 0),
+        totalPending: (complaintCounts['submitted'] || 0) + (complaintCounts['under_review'] || 0) + (complaintCounts['in_progress'] || 0),
       },
       topCategories,
-      dateRange: {
-        start: startDate,
-        end: endDate,
-      },
+      dateRange: { start: startDate, end: endDate },
     };
 
     return new Response(JSON.stringify(stats), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...headers, 'Content-Type': 'application/json' },
     });
   } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify({ error: (error as Error).message }), {
       status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...headers, 'Content-Type': 'application/json' },
     });
   }
 });

@@ -101,8 +101,8 @@ export interface Complaint extends BaseModel {
 
 export interface ComplaintStatusHistory extends BaseModel {
   complaint_id: string;
-  previous_status: ComplaintStatus | null;
-  new_status: ComplaintStatus;
+  from_status: ComplaintStatus | null;
+  to_status: ComplaintStatus;
   changed_by: string;
   notes?: string;
 }
@@ -118,9 +118,9 @@ export interface ComplaintAttachment extends BaseModel {
   complaint_id: string;
   uploaded_by: string;
   file_name: string;
-  file_url: string;
-  file_type: string;
-  file_size: number;
+  file_path: string;
+  mime_type: string | null;
+  file_size: number | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -171,8 +171,8 @@ export interface DocumentRequest extends BaseModel {
 
 export interface DocumentRequestStatusHistory extends BaseModel {
   document_request_id: string;
-  previous_status: DocumentRequestStatus | null;
-  new_status: DocumentRequestStatus;
+  from_status: DocumentRequestStatus | null;
+  to_status: DocumentRequestStatus;
   changed_by: string;
   notes?: string;
 }
@@ -181,9 +181,9 @@ export interface DocumentRequestAttachment extends BaseModel {
   document_request_id: string;
   uploaded_by: string;
   file_name: string;
-  file_url: string;
-  file_type: string;
-  file_size: number;
+  file_path: string;
+  mime_type: string | null;
+  file_size: number | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -203,7 +203,7 @@ export interface DocumentFeeSchedule extends BaseModel {
 // ---------------------------------------------------------------------------
 
 export interface Notification extends BaseModel {
-  recipient_id: string;
+  user_id: string;
   type: NotificationType;
   title: string;
   body: string;

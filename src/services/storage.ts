@@ -8,11 +8,66 @@ export interface FileInput {
   uri: string;
   name: string;
   type: string;
+  size?: number;
 }
 
 export interface ServiceResponse<T> {
   data: T | null;
   error: Error | null;
+}
+
+// ---------------------------------------------------------------------------
+// Upload Validation
+// ---------------------------------------------------------------------------
+
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+
+const ALLOWED_MIME_TYPES = [
+  // Images
+  'image/jpeg',
+  'image/png',
+  'image/gif',
+  'image/webp',
+  // Documents
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  // Text
+  'text/plain',
+  'text/csv',
+];
+
+/**
+ * Sanitize a filename by stripping path traversal characters and
+ * other potentially dangerous sequences.
+ */
+function sanitizeFilename(name: string): string {
+  return name
+    .replace(/\.\./g, '') // Remove path traversal
+    .replace(/[/\\]/g, '_') // Replace path separators
+    .replace(/[<>:"|?*\x00-\x1f]/g, '_') // Remove other dangerous chars
+    .trim();
+}
+
+/**
+ * Validate a file before upload.
+ */
+function validateFile(file: FileInput): Error | null {
+  if (file.size !== undefined && file.size > MAX_FILE_SIZE) {
+    return new Error(`File size (${(file.size / 1024 / 1024).toFixed(1)}MB) exceeds maximum of ${MAX_FILE_SIZE / 1024 / 1024}MB`);
+  }
+
+  if (file.type && !ALLOWED_MIME_TYPES.includes(file.type)) {
+    return new Error(`File type '${file.type}' is not allowed. Allowed types: images, PDF, Office documents, and text files`);
+  }
+
+  if (!file.name || file.name.trim().length === 0) {
+    return new Error('File name is required');
+  }
+
+  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -32,11 +87,21 @@ export async function uploadFile(
   file: FileInput,
 ): Promise<ServiceResponse<{ path: string; fullPath: string }>> {
   try {
+    // Validate file before upload
+    const validationError = validateFile(file);
+    if (validationError) {
+      return { data: null, error: validationError };
+    }
+
+    // Sanitize filename in the path
+    const sanitizedName = sanitizeFilename(file.name);
+    const sanitizedPath = path.replace(file.name, sanitizedName);
+
     const { data, error } = await supabase.storage
       .from(bucket)
-      .upload(path, {
+      .upload(sanitizedPath, {
         uri: file.uri,
-        name: file.name,
+        name: sanitizedName,
         type: file.type,
       } as unknown as File, {
         upsert: false,

@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { STORAGE_BUCKETS, PAGINATION } from '@/constants';
+import { canTransitionComplaintStatus } from '@/utils/permissions';
 import type {
   Complaint,
   ComplaintWithRelations,
@@ -227,10 +228,10 @@ export async function updateComplaintStatus(
   notes?: string,
 ): Promise<ServiceResponse<Complaint>> {
   try {
-    // Fetch current status so we can record it in history
+    // Fetch current status + updated_at for optimistic locking
     const { data: current, error: fetchError } = await supabase
       .from('complaints')
-      .select('status')
+      .select('status, updated_at')
       .eq('id', id)
       .single();
 
@@ -238,7 +239,16 @@ export async function updateComplaintStatus(
       return { data: null, error: fetchError };
     }
 
-    const previousStatus = (current as { status: ComplaintStatus }).status;
+    const { status: previousStatus, updated_at: currentUpdatedAt } =
+      current as { status: ComplaintStatus; updated_at: string };
+
+    // Validate status transition
+    if (!canTransitionComplaintStatus(previousStatus, newStatus)) {
+      return {
+        data: null,
+        error: new Error(`Invalid status transition from '${previousStatus}' to '${newStatus}'`),
+      };
+    }
 
     // Build the update payload
     const updatePayload: Record<string, unknown> = {
@@ -253,13 +263,21 @@ export async function updateComplaintStatus(
       }
     }
 
-    // Update complaint
-    const { data, error: updateError } = await supabase
+    // Update complaint with optimistic locking
+    const { data, error: updateError, count } = await supabase
       .from('complaints')
       .update(updatePayload)
       .eq('id', id)
+      .eq('updated_at', currentUpdatedAt)
       .select()
       .single();
+
+    if (!data && !updateError) {
+      return {
+        data: null,
+        error: new Error('This complaint was modified by another user. Please refresh and try again.'),
+      };
+    }
 
     if (updateError) {
       return { data: null, error: updateError };
@@ -270,8 +288,8 @@ export async function updateComplaintStatus(
       .from('complaint_status_history')
       .insert({
         complaint_id: id,
-        previous_status: previousStatus,
-        new_status: newStatus,
+        from_status: previousStatus,
+        to_status: newStatus,
         changed_by: changedBy,
         notes: notes ?? null,
       });
@@ -495,8 +513,8 @@ export async function addAttachment(
         complaint_id: complaintId,
         uploaded_by: uploadedBy,
         file_name: file.name,
-        file_url: urlData.publicUrl,
-        file_type: file.type,
+        file_path: filePath,
+        mime_type: file.type,
         file_size: file.size,
       })
       .select()
@@ -507,6 +525,34 @@ export async function addAttachment(
     }
 
     return { data: data as ComplaintAttachment, error: null };
+  } catch (error) {
+    return { data: null, error: error as Error };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Soft Delete (Archive)
+// ---------------------------------------------------------------------------
+
+/**
+ * Soft-delete a complaint by setting archived_at. Only captain+ should call this.
+ */
+export async function archiveComplaint(
+  id: string,
+): Promise<ServiceResponse<Complaint>> {
+  try {
+    const { data, error } = await supabase
+      .from('complaints')
+      .update({ archived_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      return { data: null, error };
+    }
+
+    return { data: data as Complaint, error: null };
   } catch (error) {
     return { data: null, error: error as Error };
   }

@@ -1,7 +1,7 @@
 import * as mock from './__mocks__/auth.mock';
 import * as real from './auth.real';
 
-const USE_MOCK = process.env.EXPO_PUBLIC_USE_MOCK === 'true';
+const USE_MOCK = process.env.EXPO_PUBLIC_USE_MOCK === 'true' && __DEV__;
 
 // Re-export types
 export type { SignUpMetadata, AuthResponse, SessionResponse } from './auth.real';

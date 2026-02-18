@@ -51,7 +51,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Partial<Record<Module, Partial<Record<A
   },
   [UserRole.TREASURER]: {
     complaints: { read: true },
-    documents: { create: true, read: true, update: true, delete: false, approve: true, assign: false, export: true },
+    documents: { create: true, read: true, update: true, delete: false, approve: false, assign: false, export: true },
     dashboard: { read: true },
     users: { read: true },
     announcements: { read: true, create: true, update: true },

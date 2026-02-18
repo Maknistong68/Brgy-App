@@ -1,18 +1,22 @@
 import { create } from 'zustand';
+import type { DocumentRequestStatus, DocumentType, PaymentStatus } from '@/types/enums';
 
 interface Document {
   id: string;
   barangay_id: string;
-  requester_id: string;
-  document_type: string;
+  requestor_id: string;
+  reference_number: string;
+  document_type: DocumentType;
   purpose: string;
-  status: 'pending' | 'processing' | 'ready' | 'claimed' | 'rejected';
-  remarks: string | null;
-  or_number: string | null;
+  form_data: Record<string, any>;
+  status: DocumentRequestStatus;
+  payment_status: PaymentStatus;
   amount: number | null;
-  scheduled_date: string | null;
-  completed_at: string | null;
-  attachments: string[];
+  or_number: string | null;
+  processed_by: string | null;
+  approved_by: string | null;
+  released_at: string | null;
+  rejection_reason: string | null;
   created_at: string;
   updated_at: string;
 }

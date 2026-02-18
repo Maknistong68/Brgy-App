@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import { PAGINATION } from '@/constants';
+import { PAGINATION, ROLE_HIERARCHY } from '@/constants';
 import type { Profile, AuditLog, DocumentFeeSchedule } from '@/types';
 import { UserRole, DocumentType } from '@/types';
 
@@ -96,12 +96,35 @@ export async function getUsers(
 
 /**
  * Change a user's role.
+ *
+ * Caller must be captain+ and cannot:
+ * - Promote someone to a role >= their own
+ * - Change their own role (self-promotion)
  */
 export async function updateUserRole(
   profileId: string,
   newRole: UserRole,
+  callerProfileId: string,
+  callerRole: UserRole,
 ): Promise<ServiceResponse<Profile>> {
   try {
+    // Block: caller role must be captain+
+    const callerLevel = ROLE_HIERARCHY[callerRole] ?? -1;
+    if (callerLevel < (ROLE_HIERARCHY[UserRole.CAPTAIN] ?? Infinity)) {
+      return { data: null, error: new Error('Only captain or higher can change user roles') };
+    }
+
+    // Block: self-promotion
+    if (profileId === callerProfileId) {
+      return { data: null, error: new Error('Cannot change your own role') };
+    }
+
+    // Block: promoting to >= own role
+    const newLevel = ROLE_HIERARCHY[newRole] ?? Infinity;
+    if (newLevel >= callerLevel) {
+      return { data: null, error: new Error('Cannot promote a user to a role equal to or above your own') };
+    }
+
     const { data, error } = await supabase
       .from('profiles')
       .update({

@@ -1,18 +1,20 @@
 import { create } from 'zustand';
+import type { ComplaintStatus, ComplaintPriority, ComplaintCategory } from '@/types/enums';
 
 interface Complaint {
   id: string;
   barangay_id: string;
   complainant_id: string;
-  subject: string;
+  reference_number: string;
+  respondent_name: string;
+  respondent_address: string | null;
   description: string;
-  category: string;
-  priority: 'low' | 'medium' | 'high' | 'urgent';
-  status: 'pending' | 'in_progress' | 'resolved' | 'dismissed';
-  location: string | null;
-  attachments: string[];
+  category: ComplaintCategory;
+  priority: ComplaintPriority;
+  status: ComplaintStatus;
   assigned_to: string | null;
-  resolution: string | null;
+  resolved_at: string | null;
+  resolution_notes: string | null;
   created_at: string;
   updated_at: string;
 }

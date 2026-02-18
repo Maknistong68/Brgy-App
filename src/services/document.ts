@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { STORAGE_BUCKETS, PAGINATION } from '@/constants';
+import { canTransitionDocumentStatus } from '@/utils/permissions';
 import type {
   DocumentRequest,
   DocumentRequestWithRelations,
@@ -220,10 +221,10 @@ export async function updateDocumentStatus(
   notes?: string,
 ): Promise<ServiceResponse<DocumentRequest>> {
   try {
-    // Fetch current status for history
+    // Fetch current status + updated_at for optimistic locking
     const { data: current, error: fetchError } = await supabase
       .from('document_requests')
-      .select('status')
+      .select('status, updated_at')
       .eq('id', id)
       .single();
 
@@ -231,7 +232,40 @@ export async function updateDocumentStatus(
       return { data: null, error: fetchError };
     }
 
-    const previousStatus = (current as { status: DocumentRequestStatus }).status;
+    const { status: previousStatus, updated_at: currentUpdatedAt } =
+      current as { status: DocumentRequestStatus; updated_at: string };
+
+    // Validate status transition
+    if (!canTransitionDocumentStatus(previousStatus, newStatus)) {
+      return {
+        data: null,
+        error: new Error(`Invalid status transition from '${previousStatus}' to '${newStatus}'`),
+      };
+    }
+
+    // Enforce payment before release
+    if (newStatus === DocumentRequestStatus.FOR_RELEASE) {
+      const { data: docData, error: docError } = await supabase
+        .from('document_requests')
+        .select('payment_status, amount')
+        .eq('id', id)
+        .single();
+
+      if (docError) {
+        return { data: null, error: docError };
+      }
+
+      const doc = docData as { payment_status: string; amount: number | null };
+      const requiresPayment = doc.amount != null && doc.amount > 0;
+      const isPaid = doc.payment_status === PaymentStatus.PAID || doc.payment_status === PaymentStatus.WAIVED;
+
+      if (requiresPayment && !isPaid) {
+        return {
+          data: null,
+          error: new Error('Payment must be completed or waived before releasing the document'),
+        };
+      }
+    }
 
     // Build the update payload
     const updatePayload: Record<string, unknown> = {
@@ -247,13 +281,21 @@ export async function updateDocumentStatus(
       updatePayload.rejection_reason = notes;
     }
 
-    // Update document request
+    // Update document request with optimistic locking
     const { data, error: updateError } = await supabase
       .from('document_requests')
       .update(updatePayload)
       .eq('id', id)
+      .eq('updated_at', currentUpdatedAt)
       .select()
       .single();
+
+    if (!data && !updateError) {
+      return {
+        data: null,
+        error: new Error('This document request was modified by another user. Please refresh and try again.'),
+      };
+    }
 
     if (updateError) {
       return { data: null, error: updateError };
@@ -264,8 +306,8 @@ export async function updateDocumentStatus(
       .from('document_request_status_history')
       .insert({
         document_request_id: id,
-        previous_status: previousStatus,
-        new_status: newStatus,
+        from_status: previousStatus,
+        to_status: newStatus,
         changed_by: changedBy,
         notes: notes ?? null,
       });
@@ -421,8 +463,8 @@ export async function addAttachment(
         document_request_id: requestId,
         uploaded_by: uploadedBy,
         file_name: file.name,
-        file_url: urlData.publicUrl,
-        file_type: file.type,
+        file_path: filePath,
+        mime_type: file.type,
         file_size: file.size,
       })
       .select()
@@ -487,6 +529,34 @@ export async function getFee(
     }
 
     return { data: data as DocumentFeeSchedule, error: null };
+  } catch (error) {
+    return { data: null, error: error as Error };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Soft Delete (Archive)
+// ---------------------------------------------------------------------------
+
+/**
+ * Soft-delete a document request by setting archived_at. Only captain+ should call this.
+ */
+export async function archiveDocumentRequest(
+  id: string,
+): Promise<ServiceResponse<DocumentRequest>> {
+  try {
+    const { data, error } = await supabase
+      .from('document_requests')
+      .update({ archived_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      return { data: null, error };
+    }
+
+    return { data: data as DocumentRequest, error: null };
   } catch (error) {
     return { data: null, error: error as Error };
   }

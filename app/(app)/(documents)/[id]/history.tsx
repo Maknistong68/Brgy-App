@@ -156,10 +156,10 @@ export default function DocumentHistoryScreen() {
                 >
                   {/* Status badges */}
                   <View style={styles.statusTransition}>
-                    {entry.previous_status ? (
+                    {entry.from_status ? (
                       <>
                         <StatusChip
-                          status={entry.previous_status}
+                          status={entry.from_status}
                           isMuted
                         />
                         <Ionicons
@@ -169,7 +169,7 @@ export default function DocumentHistoryScreen() {
                         />
                       </>
                     ) : null}
-                    <StatusChip status={entry.new_status} />
+                    <StatusChip status={entry.to_status} />
                   </View>
 
                   {/* Changed by */}

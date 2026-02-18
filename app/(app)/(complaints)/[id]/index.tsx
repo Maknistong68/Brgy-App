@@ -19,6 +19,8 @@ import { useComplaintStore } from '@/stores/complaintStore';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useUIStore } from '@/stores/uiStore';
 import { supabase } from '@/lib/supabase';
+import { STORAGE_BUCKETS } from '@/constants';
+import * as complaintService from '@/services/complaint';
 import {
   Card,
   Button,
@@ -142,35 +144,21 @@ export default function ComplaintDetailScreen() {
 
     setChangingStatus(true);
     try {
-      const updates: Record<string, any> = {
-        status: newStatus,
-        updated_at: new Date().toISOString(),
-      };
-
-      if (newStatus === 'resolved') {
-        updates.resolved_at = new Date().toISOString();
-      }
-
-      const { error } = await supabase
-        .from('complaints')
-        .update(updates)
-        .eq('id', complaint.id);
+      const { data, error } = await complaintService.updateComplaintStatus(
+        complaint.id,
+        newStatus as any,
+        profile.id,
+      );
 
       if (error) {
         Alert.alert('Error', error.message);
         return;
       }
 
-      // Log status change
-      await supabase.from('complaint_status_history').insert({
-        complaint_id: complaint.id,
-        previous_status: complaint.status,
-        new_status: newStatus,
-        changed_by: profile.id,
-      });
-
-      setComplaint((prev) => (prev ? { ...prev, ...updates } : null));
-      updateComplaint(complaint.id, updates);
+      if (data) {
+        setComplaint((prev) => (prev ? { ...prev, ...data } : null));
+        updateComplaint(complaint.id, data);
+      }
       setStatusSheetVisible(false);
       showToast(`Status changed to ${getStatusLabel(newStatus)}`, 'success');
     } catch (err: any) {
@@ -222,7 +210,13 @@ export default function ComplaintDetailScreen() {
     );
   }
 
-  const nextStatuses = getNextComplaintStatuses(complaint.status);
+  // Filter available status transitions by role
+  const allNextStatuses = getNextComplaintStatuses(complaint.status);
+  const nextStatuses = allNextStatuses.filter((status) => {
+    // Only secretary+ can reject
+    if (status === 'rejected' && !isSecretary) return false;
+    return true;
+  });
   const complainant = complaint.complainant;
   const assignedStaff = complaint.assigned_staff;
 
@@ -344,18 +338,23 @@ export default function ComplaintDetailScreen() {
         {attachments.length > 0 && (
           <Card header={`Attachments (${attachments.length})`} style={styles.infoCard}>
             <View style={styles.attachmentGallery}>
-              {attachments.map((att) => (
-                <View key={att.id} style={styles.attachmentPreviewContainer}>
-                  <Image
-                    source={{ uri: att.file_url }}
-                    style={styles.attachmentPreviewImage}
-                    resizeMode="contain"
-                  />
-                  <Text style={styles.attachmentPreviewName} numberOfLines={1}>
-                    {att.file_name}
-                  </Text>
-                </View>
-              ))}
+              {attachments.map((att) => {
+                const { data: urlData } = supabase.storage
+                  .from(STORAGE_BUCKETS.COMPLAINT_ATTACHMENTS)
+                  .getPublicUrl(att.file_path);
+                return (
+                  <View key={att.id} style={styles.attachmentPreviewContainer}>
+                    <Image
+                      source={{ uri: urlData.publicUrl }}
+                      style={styles.attachmentPreviewImage}
+                      resizeMode="contain"
+                    />
+                    <Text style={styles.attachmentPreviewName} numberOfLines={1}>
+                      {att.file_name}
+                    </Text>
+                  </View>
+                );
+              })}
             </View>
           </Card>
         )}

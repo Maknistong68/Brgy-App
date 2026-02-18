@@ -8,7 +8,7 @@ import { NotificationType } from '@/types';
 // ---------------------------------------------------------------------------
 
 export interface CreateNotificationData {
-  recipient_id: string;
+  user_id: string;
   type: NotificationType;
   title: string;
   body: string;
@@ -37,7 +37,7 @@ export async function getNotifications(
     const { data, error } = await supabase
       .from('notifications')
       .select('*')
-      .eq('recipient_id', userId)
+      .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
@@ -61,7 +61,7 @@ export async function getUnreadCount(
     const { count, error } = await supabase
       .from('notifications')
       .select('id', { count: 'exact', head: true })
-      .eq('recipient_id', userId)
+      .eq('user_id', userId)
       .eq('is_read', false);
 
     if (error) {
@@ -114,7 +114,7 @@ export async function markAllAsRead(
         is_read: true,
         read_at: new Date().toISOString(),
       })
-      .eq('recipient_id', userId)
+      .eq('user_id', userId)
       .eq('is_read', false);
 
     return { error: error ?? null };
@@ -133,7 +133,7 @@ export async function createNotification(
     const { data, error } = await supabase
       .from('notifications')
       .insert({
-        recipient_id: input.recipient_id,
+        user_id: input.user_id,
         type: input.type,
         title: input.title,
         body: input.body,

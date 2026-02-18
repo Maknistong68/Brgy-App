@@ -149,7 +149,12 @@ export default function UsersScreen() {
     if (!selectedUser || !selectedNewRole || selectedNewRole === selectedUser.role) return;
 
     setActionLoading(true);
-    const res = await updateUserRole(selectedUser.id, selectedNewRole);
+    const res = await updateUserRole(
+      selectedUser.id,
+      selectedNewRole,
+      currentProfile?.id ?? '',
+      (currentProfile?.role ?? UserRole.RESIDENT) as UserRole,
+    );
     setActionLoading(false);
 
     if (res.error) {

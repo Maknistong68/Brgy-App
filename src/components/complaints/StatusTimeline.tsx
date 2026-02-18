@@ -6,8 +6,8 @@ import { formatDateTime } from '@/utils/format';
 
 interface StatusEntry {
   id: string;
-  previous_status: string | null;
-  new_status: string;
+  from_status: string | null;
+  to_status: string;
   changed_by: string;
   notes?: string;
   created_at: string;
@@ -49,7 +49,7 @@ export function StatusTimeline({ entries }: StatusTimelineProps) {
       {sorted.map((entry, index) => {
         const isFirst = index === 0;
         const isLast = index === sorted.length - 1;
-        const dotColor = getStatusColor(entry.new_status);
+        const dotColor = getStatusColor(entry.to_status);
 
         return (
           <View key={entry.id} style={styles.entryRow}>
@@ -82,7 +82,7 @@ export function StatusTimeline({ entries }: StatusTimelineProps) {
             {/* Content column */}
             <View style={[styles.contentColumn, isLast && { paddingBottom: 0 }]}>
               <Text style={[styles.statusLabel, isFirst && styles.statusLabelCurrent]}>
-                {formatStatusLabel(entry.new_status)}
+                {formatStatusLabel(entry.to_status)}
               </Text>
               {entry.changed_by_name && (
                 <Text style={styles.changedBy}>by {entry.changed_by_name}</Text>

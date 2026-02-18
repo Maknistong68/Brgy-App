@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import * as authService from '@/services/auth';
 import * as profileService from '@/services/profile';
@@ -27,22 +27,34 @@ export function useAuth() {
     reset,
   } = useAuthStore();
 
+  // Guard against double-click sign in
+  const signingIn = useRef(false);
+
   useEffect(() => {
     // Get initial session
     const initAuth = async () => {
       try {
-        const { data } = await authService.getSession();
+        const { data, error } = await authService.getSession();
+
+        // Don't set initialized on failure — retry on next mount
+        if (error) {
+          console.error('Auth init error:', error);
+          setLoading(false);
+          return;
+        }
+
         const initialSession = data?.session ?? null;
         setSession(initialSession);
         if (initialSession?.user) {
           const { data: profileData } = await profileService.getProfile(initialSession.user.id);
           if (profileData) setProfile(profileData as any);
         }
+        setInitialized(true);
       } catch (error) {
         console.error('Auth init error:', error);
+        // Don't set initialized=true on failure
       } finally {
         setLoading(false);
-        setInitialized(true);
       }
     };
 
@@ -67,10 +79,18 @@ export function useAuth() {
   }, []);
 
   const signIn = async (email: string, password: string) => {
+    // Prevent double-click
+    if (signingIn.current) return { data: null, error: new Error('Sign in already in progress') };
+    signingIn.current = true;
+
     setLoading(true);
-    const result = await authService.signInWithEmail(email, password);
-    setLoading(false);
-    return result;
+    try {
+      const result = await authService.signInWithEmail(email, password);
+      return result;
+    } finally {
+      setLoading(false);
+      signingIn.current = false;
+    }
   };
 
   const signUp = async (
@@ -96,8 +116,13 @@ export function useAuth() {
   };
 
   const signOut = async () => {
-    await authService.signOut();
-    reset();
+    try {
+      await authService.signOut();
+    } catch (error) {
+      console.error('Sign out error:', error);
+    } finally {
+      reset();
+    }
   };
 
   const resetPassword = async (email: string) => {

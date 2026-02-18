@@ -15,6 +15,7 @@ import { useDocumentStore } from '@/stores/documentStore';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useUIStore } from '@/stores/uiStore';
 import { supabase } from '@/lib/supabase';
+import * as documentService from '@/services/document';
 import {
   Card,
   Button,
@@ -92,41 +93,33 @@ export default function DocumentDetailScreen() {
 
     setChangingStatus(true);
     try {
-      const updates: Record<string, any> = {
-        status: newStatus,
-        updated_at: new Date().toISOString(),
-      };
-
-      if (newStatus === 'processing') {
-        updates.processed_by = profile.id;
-      }
-      if (newStatus === 'approved') {
-        updates.approved_by = profile.id;
-      }
-      if (newStatus === 'released') {
-        updates.released_at = new Date().toISOString();
-      }
-
-      const { error } = await supabase
-        .from('document_requests')
-        .update(updates)
-        .eq('id', document.id);
+      const { data, error } = await documentService.updateDocumentStatus(
+        document.id,
+        newStatus as any,
+        profile.id,
+      );
 
       if (error) {
         Alert.alert('Error', error.message);
         return;
       }
 
-      // Log status change
-      await supabase.from('document_request_status_history').insert({
-        document_request_id: document.id,
-        previous_status: document.status,
-        new_status: newStatus,
-        changed_by: profile.id,
-      });
+      if (data) {
+        // Also update processor/approver if applicable
+        const extraUpdates: Record<string, any> = {};
+        if (newStatus === 'processing') extraUpdates.processed_by = profile.id;
+        if (newStatus === 'approved') extraUpdates.approved_by = profile.id;
 
-      setDocument((prev) => (prev ? { ...prev, ...updates } : null));
-      updateDocument(document.id, updates);
+        if (Object.keys(extraUpdates).length > 0) {
+          await supabase
+            .from('document_requests')
+            .update(extraUpdates)
+            .eq('id', document.id);
+        }
+
+        setDocument((prev) => (prev ? { ...prev, ...data, ...extraUpdates } : null));
+        updateDocument(document.id, { ...data, ...extraUpdates });
+      }
       setStatusSheetVisible(false);
       showToast(`Status changed to ${getStatusLabel(newStatus)}`, 'success');
     } catch (err: any) {
@@ -210,7 +203,13 @@ export default function DocumentDetailScreen() {
     );
   }
 
-  const nextStatuses = getNextDocumentStatuses(document.status);
+  // Filter available status transitions by role
+  const allNextStatuses = getNextDocumentStatuses(document.status);
+  const nextStatuses = allNextStatuses.filter((status) => {
+    // Only secretary+ can approve or reject
+    if ((status === 'approved' || status === 'rejected') && !isSecretary) return false;
+    return true;
+  });
   const requestor = document.requestor;
 
   return (

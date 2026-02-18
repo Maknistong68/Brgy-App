@@ -1,6 +1,10 @@
 import type { AuthChangeEvent, Session, User } from '@supabase/supabase-js';
 import type { SignUpMetadata, AuthResponse, SessionResponse } from '../auth.real';
 
+if (typeof __DEV__ !== 'undefined' && !__DEV__) {
+  throw new Error('Mock auth module must not be used in production builds.');
+}
+
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 // ---------------------------------------------------------------------------
@@ -63,11 +67,13 @@ function notifyListeners(event: AuthChangeEvent, session: Session | null) {
 // Pre-seed two test users
 // ---------------------------------------------------------------------------
 
+const mockPassword = `Mock${Date.now().toString(36)}!`;
+
 const user1 = createMockUser('test1@brgyapp.com', 'Juan', 'Dela Cruz');
-users.set('test1@brgyapp.com', { user: user1, password: 'BrgyTest123!' });
+users.set('test1@brgyapp.com', { user: user1, password: mockPassword });
 
 const user2 = createMockUser('test2@brgyapp.com', 'Maria', 'Santos');
-users.set('test2@brgyapp.com', { user: user2, password: 'BrgyTest123!' });
+users.set('test2@brgyapp.com', { user: user2, password: mockPassword });
 
 // ---------------------------------------------------------------------------
 // Mock auth functions
