@@ -14,6 +14,7 @@ import {
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import Toast from 'react-native-toast-message';
 import {
   colors,
@@ -57,6 +58,7 @@ if (Platform.OS !== 'web') {
 // ---------------------------------------------------------------------------
 
 export default function JoinBarangayScreen() {
+  const router = useRouter();
   const profile = useAuthStore((s) => s.profile);
   const setProfile = useAuthStore((s) => s.setProfile);
 
@@ -202,6 +204,7 @@ export default function JoinBarangayScreen() {
 
     setProfile(updatedProfile as any);
     Toast.show({ type: 'success', text1: 'Welcome!', text2: `You joined ${selected.name}.` });
+    router.replace('/(app)/(home)');
   };
 
   // ---------- Render ----------
