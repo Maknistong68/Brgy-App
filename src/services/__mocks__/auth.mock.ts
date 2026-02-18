@@ -1,10 +1,6 @@
 import type { AuthChangeEvent, Session, User } from '@supabase/supabase-js';
 import type { SignUpMetadata, AuthResponse, SessionResponse } from '../auth.real';
 
-if (typeof __DEV__ !== 'undefined' && !__DEV__) {
-  throw new Error('Mock auth module must not be used in production builds.');
-}
-
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 // ---------------------------------------------------------------------------
