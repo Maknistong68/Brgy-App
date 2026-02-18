@@ -1,6 +1,5 @@
 import { useEffect } from 'react';
 import { useAuthStore } from '@/stores/authStore';
-import { supabase } from '@/lib/supabase';
 import * as authService from '@/services/auth';
 import * as profileService from '@/services/profile';
 
@@ -32,10 +31,11 @@ export function useAuth() {
     // Get initial session
     const initAuth = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        setSession(session);
-        if (session?.user) {
-          const { data: profileData } = await profileService.getProfile(session.user.id);
+        const { data } = await authService.getSession();
+        const initialSession = data?.session ?? null;
+        setSession(initialSession);
+        if (initialSession?.user) {
+          const { data: profileData } = await profileService.getProfile(initialSession.user.id);
           if (profileData) setProfile(profileData as any);
         }
       } catch (error) {
@@ -48,11 +48,8 @@ export function useAuth() {
 
     initAuth();
 
-    // Listen for auth changes — callback must NOT be async because
-    // supabase-js v2 awaits async onAuthStateChange callbacks, which
-    // would block signInWithPassword from returning if the profile
-    // fetch is slow or fails.
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    // Listen for auth changes
+    const subscription = authService.onAuthStateChange((event, session) => {
       setSession(session);
       if (session?.user) {
         // Fire-and-forget: fetch profile without blocking the auth flow
