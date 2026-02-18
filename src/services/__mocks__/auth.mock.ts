@@ -63,13 +63,13 @@ function notifyListeners(event: AuthChangeEvent, session: Session | null) {
 // Pre-seed two test users
 // ---------------------------------------------------------------------------
 
-const mockPassword = `Mock${Date.now().toString(36)}!`;
+const DEV_PASSWORD = 'BrgyDev2026!';
 
 const user1 = createMockUser('test1@brgyapp.com', 'Juan', 'Dela Cruz');
-users.set('test1@brgyapp.com', { user: user1, password: mockPassword });
+users.set('test1@brgyapp.com', { user: user1, password: DEV_PASSWORD });
 
 const user2 = createMockUser('test2@brgyapp.com', 'Maria', 'Santos');
-users.set('test2@brgyapp.com', { user: user2, password: mockPassword });
+users.set('test2@brgyapp.com', { user: user2, password: DEV_PASSWORD });
 
 // ---------------------------------------------------------------------------
 // Mock auth functions
