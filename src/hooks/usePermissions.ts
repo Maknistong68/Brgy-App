@@ -1,8 +1,12 @@
 import { useAuthStore } from '@/stores/authStore';
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { isRoleAtLeast as checkRoleAtLeast } from '@/utils/permissions';
+import { isRoleAtLeast as checkRoleAtLeast, hasPermission as checkPermission } from '@/utils/permissions';
+import type { Module, Action } from '@/utils/permissions';
 import { ROLE_HIERARCHY } from '@/constants';
+import { UserRole } from '@/types';
+
+const USE_MOCK = process.env.EXPO_PUBLIC_USE_MOCK === 'true';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -53,6 +57,32 @@ export function usePermissions() {
 
   useEffect(() => {
     if (!profile?.role) return;
+
+    if (USE_MOCK) {
+      // Build permissions from the hardcoded ROLE_PERMISSIONS matrix in utils
+      const ACTIONS: PermissionAction[] = ['create', 'read', 'update', 'delete', 'approve', 'assign', 'export'];
+      const MODULES: Module[] = ['complaints', 'documents', 'dashboard', 'users', 'settings', 'announcements', 'reports'];
+      const role = profile.role as UserRole;
+      const perms: Permission[] = MODULES.map((mod) => {
+        const perm: Permission = {
+          module: mod,
+          can_create: false,
+          can_read: false,
+          can_update: false,
+          can_delete: false,
+          can_approve: false,
+          can_assign: false,
+          can_export: false,
+        };
+        for (const action of ACTIONS) {
+          (perm as any)[`can_${action}`] = checkPermission(role, mod, action);
+        }
+        return perm;
+      });
+      setPermissions(perms);
+      setIsLoaded(true);
+      return;
+    }
 
     const loadPermissions = async () => {
       const { data } = await supabase

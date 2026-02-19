@@ -15,3 +15,8 @@ export const signOut = USE_MOCK ? mock.signOut : real.signOut;
 export const resetPassword = USE_MOCK ? mock.resetPassword : real.resetPassword;
 export const getSession = USE_MOCK ? mock.getSession : real.getSession;
 export const onAuthStateChange = USE_MOCK ? mock.onAuthStateChange : real.onAuthStateChange;
+
+// Quick sign-in — only available in mock mode
+export const quickSignIn = USE_MOCK
+  ? mock.quickSignIn
+  : async () => ({ data: null, error: new Error('Quick sign-in is only available in mock mode') } as any);

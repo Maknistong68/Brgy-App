@@ -1,7 +1,12 @@
 import type { AuthChangeEvent, Session, User } from '@supabase/supabase-js';
 import type { SignUpMetadata, AuthResponse, SessionResponse } from '../auth.real';
-
-const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
+import { UserRole } from '@/types';
+import {
+  profilesByUserId,
+  roleToUserId,
+  setCurrentUserId,
+  delay,
+} from './mockDataStore';
 
 // ---------------------------------------------------------------------------
 // In-memory auth store
@@ -53,23 +58,31 @@ function createMockSession(user: User): Session {
 
 function notifyListeners(event: AuthChangeEvent, session: Session | null) {
   currentSession = session;
-  // Notify asynchronously like real Supabase
   setTimeout(() => {
     listeners.forEach((cb) => cb(event, session));
   }, 0);
 }
 
 // ---------------------------------------------------------------------------
-// Pre-seed two test users
+// Pre-seed role-based users (from mockDataStore profiles)
 // ---------------------------------------------------------------------------
 
 const DEV_PASSWORD = 'BrgyDev2026!';
 
-const user1 = createMockUser('test1@brgyapp.com', 'Juan', 'Dela Cruz');
-users.set('test1@brgyapp.com', { user: user1, password: DEV_PASSWORD });
+for (const [, profile] of profilesByUserId) {
+  const user = createMockUser(profile.email, profile.first_name, profile.last_name);
+  users.set(profile.email.toLowerCase(), { user, password: DEV_PASSWORD });
+}
 
-const user2 = createMockUser('test2@brgyapp.com', 'Maria', 'Santos');
-users.set('test2@brgyapp.com', { user: user2, password: DEV_PASSWORD });
+// Also keep the old test users for backward compat
+if (!users.has('test1@brgyapp.com')) {
+  const user1 = createMockUser('test1@brgyapp.com', 'Juan', 'Dela Cruz');
+  users.set('test1@brgyapp.com', { user: user1, password: DEV_PASSWORD });
+}
+if (!users.has('test2@brgyapp.com')) {
+  const user2 = createMockUser('test2@brgyapp.com', 'Maria', 'Santos');
+  users.set('test2@brgyapp.com', { user: user2, password: DEV_PASSWORD });
+}
 
 // ---------------------------------------------------------------------------
 // Mock auth functions
@@ -84,6 +97,7 @@ export async function signInWithEmail(
   if (!entry || entry.password !== password) {
     return { data: null, error: new Error('Invalid login credentials') };
   }
+  setCurrentUserId(entry.user.id);
   const session = createMockSession(entry.user);
   notifyListeners('SIGNED_IN', session);
   return { data: { user: entry.user, session }, error: null };
@@ -101,6 +115,7 @@ export async function signUpWithEmail(
   }
   const user = createMockUser(email, metadata.first_name, metadata.last_name);
   users.set(key, { user, password });
+  setCurrentUserId(user.id);
   const session = createMockSession(user);
   notifyListeners('SIGNED_IN', session);
   return { data: { user, session }, error: null };
@@ -123,6 +138,7 @@ export async function verifyOtp(
 
 export async function signOut(): Promise<{ error: Error | null }> {
   await delay(100);
+  setCurrentUserId(null);
   notifyListeners('SIGNED_OUT', null);
   return { error: null };
 }
@@ -144,4 +160,33 @@ export function onAuthStateChange(
 ) {
   listeners.add(callback);
   return { unsubscribe: () => { listeners.delete(callback); } };
+}
+
+// ---------------------------------------------------------------------------
+// Quick Sign-In (new)
+// ---------------------------------------------------------------------------
+
+export async function quickSignIn(
+  role: UserRole,
+): Promise<AuthResponse> {
+  const userId = roleToUserId[role];
+  if (!userId) {
+    return { data: null, error: new Error(`No mock user for role: ${role}`) };
+  }
+
+  const profile = profilesByUserId.get(userId);
+  if (!profile) {
+    return { data: null, error: new Error(`Profile not found for role: ${role}`) };
+  }
+
+  const entry = users.get(profile.email.toLowerCase());
+  if (!entry) {
+    return { data: null, error: new Error(`Auth entry not found for: ${profile.email}`) };
+  }
+
+  await delay(200);
+  setCurrentUserId(entry.user.id);
+  const session = createMockSession(entry.user);
+  notifyListeners('SIGNED_IN', session);
+  return { data: { user: entry.user, session }, error: null };
 }

@@ -7,6 +7,7 @@ import {
   Platform,
   StyleSheet,
   Pressable,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useForm, Controller } from 'react-hook-form';
@@ -15,12 +16,25 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Button, Input } from '@/components/ui';
 import { loginSchema, type LoginFormData } from '@/validations';
-import { signInWithEmail } from '@/services/auth';
+import { signInWithEmail, quickSignIn } from '@/services/auth';
+import { UserRole } from '@/types';
 import { colors, spacing, fontSize, fontWeight, borderRadius } from '@/theme';
+
+const USE_MOCK = process.env.EXPO_PUBLIC_USE_MOCK === 'true';
+
+const QUICK_SIGN_IN_ROLES: { role: UserRole; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+  { role: UserRole.RESIDENT, label: 'Resident', icon: 'person' },
+  { role: UserRole.STAFF, label: 'Staff', icon: 'briefcase' },
+  { role: UserRole.SECRETARY, label: 'Secretary', icon: 'document-text' },
+  { role: UserRole.TREASURER, label: 'Treasurer', icon: 'cash' },
+  { role: UserRole.CAPTAIN, label: 'Captain', icon: 'shield' },
+  { role: UserRole.SYSTEM_ADMIN, label: 'Admin', icon: 'settings' },
+];
 
 export default function LoginScreen() {
   const router = useRouter();
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [quickSignInRole, setQuickSignInRole] = useState<UserRole | null>(null);
 
   const {
     control,
@@ -48,6 +62,26 @@ export default function LoginScreen() {
     router.replace('/(app)/(home)');
   };
 
+  const handleQuickSignIn = async (role: UserRole) => {
+    setLoginError(null);
+    setQuickSignInRole(role);
+
+    try {
+      const { error } = await quickSignIn(role);
+
+      if (error) {
+        setLoginError(error.message || 'Quick sign-in failed.');
+        setQuickSignInRole(null);
+        return;
+      }
+
+      router.replace('/(app)/(home)');
+    } catch (e) {
+      setLoginError('Quick sign-in failed unexpectedly.');
+      setQuickSignInRole(null);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView
@@ -70,6 +104,49 @@ export default function LoginScreen() {
               Your barangay services, at your fingertips
             </Text>
           </View>
+
+          {/* Quick Sign-In (mock mode only) */}
+          {USE_MOCK && (
+            <View style={styles.quickSignInCard}>
+              <Text style={styles.quickSignInTitle}>Quick Sign In</Text>
+              <Text style={styles.quickSignInSubtitle}>
+                Tap a role to instantly sign in as that user
+              </Text>
+              <View style={styles.roleGrid}>
+                {QUICK_SIGN_IN_ROLES.map(({ role, label, icon }) => {
+                  const isLoading = quickSignInRole === role;
+                  const isDisabled = quickSignInRole !== null;
+                  return (
+                    <Pressable
+                      key={role}
+                      style={[
+                        styles.roleButton,
+                        isDisabled && !isLoading && styles.roleButtonDisabled,
+                        isLoading && styles.roleButtonActive,
+                      ]}
+                      onPress={() => handleQuickSignIn(role)}
+                      disabled={isDisabled}
+                    >
+                      {isLoading ? (
+                        <ActivityIndicator size="small" color={colors.white} />
+                      ) : (
+                        <Ionicons name={icon} size={22} color={isDisabled ? colors.grey[400] : colors.primary[700]} />
+                      )}
+                      <Text
+                        style={[
+                          styles.roleButtonText,
+                          isLoading && styles.roleButtonTextActive,
+                          isDisabled && !isLoading && styles.roleButtonTextDisabled,
+                        ]}
+                      >
+                        {label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          )}
 
           {/* Login Form */}
           <View style={styles.form}>
@@ -217,6 +294,66 @@ const styles = StyleSheet.create({
     color: colors.text.secondary,
     textAlign: 'center',
   },
+
+  // Quick Sign In
+  quickSignInCard: {
+    backgroundColor: colors.primary[50],
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.primary[200],
+  },
+  quickSignInTitle: {
+    fontSize: fontSize.lg,
+    fontWeight: fontWeight.bold,
+    color: colors.primary[800],
+    textAlign: 'center',
+    marginBottom: spacing.xs,
+  },
+  quickSignInSubtitle: {
+    fontSize: fontSize.sm,
+    color: colors.primary[600],
+    textAlign: 'center',
+    marginBottom: spacing.md,
+  },
+  roleGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+  },
+  roleButton: {
+    width: '31%',
+    backgroundColor: colors.white,
+    borderRadius: borderRadius.md,
+    paddingVertical: spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.primary[200],
+    minHeight: 72,
+  },
+  roleButtonDisabled: {
+    opacity: 0.5,
+  },
+  roleButtonActive: {
+    backgroundColor: colors.primary[600],
+    borderColor: colors.primary[700],
+  },
+  roleButtonText: {
+    fontSize: fontSize.xs,
+    fontWeight: fontWeight.semibold,
+    color: colors.primary[700],
+    marginTop: spacing.xs,
+  },
+  roleButtonTextActive: {
+    color: colors.white,
+  },
+  roleButtonTextDisabled: {
+    color: colors.grey[400],
+  },
+
   form: {
     marginBottom: spacing.lg,
   },

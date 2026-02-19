@@ -4,6 +4,8 @@ import { useAuthStore } from '@/stores/authStore';
 import { supabase } from '@/lib/supabase';
 import * as notificationService from '@/services/notification';
 
+const USE_MOCK = process.env.EXPO_PUBLIC_USE_MOCK === 'true';
+
 // ---------------------------------------------------------------------------
 // Hook
 // ---------------------------------------------------------------------------
@@ -117,6 +119,9 @@ export function useNotifications() {
 
     // Load initial notifications
     loadNotifications();
+
+    // Skip real-time subscription in mock mode
+    if (USE_MOCK) return;
 
     // Subscribe to real-time inserts on the notifications table for this user
     const channel = supabase
